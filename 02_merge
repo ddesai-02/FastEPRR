@@ -3,24 +3,19 @@ import glob
 import subprocess
 from collections import defaultdict
 
-# --- Configuration ---
-# Directory containing your trimmed FASTQ files
+# --- Configuration (Keep these paths correct) ---
 trimmed_dir = "/home/devan/projects/def-shaferab/devan/Odocoileus_virginianus/fasteprr/trimmed"
+merge_output_dir = os.path.join(trimmed_dir, "merged_files")
 
-# Directory where the final merged files and merge job scripts will be saved
-merge_output_dir = os.path.join(trimmed_dir, "merged")
-
+# Ensure the output directory exists
 os.makedirs(merge_output_dir, exist_ok=True)
 print(f"Trimmed directory: {trimmed_dir}")
 print(f"Merge output directory: {merge_output_dir}")
 print("-" * 30)
 
-# Dictionary to hold lists of R1 and R2 files grouped by Sample ID
-# Key: 'SampleID' (e.g., 'Odo_Key3')
-# Value: {'R1': [list of R1 files], 'R2': [list of R2 files]}
 sample_groups = defaultdict(lambda: {'R1': [], 'R2': []})
 
-# --- Step 1: Group Files by Sample ID ---
+# --- Step 1: Group Files by Correct Sample ID ---
 all_trimmed_files = glob.glob(os.path.join(trimmed_dir, "*_trimmed_R?.fastq.gz"))
 
 for filepath in all_trimmed_files:
@@ -32,36 +27,38 @@ for filepath in all_trimmed_files:
     elif '_R2.fastq.gz' in filename:
         read_group = 'R2'
     else:
-        continue # Skip files that aren't R1 or R2
+        continue 
 
-    # 2. Extract the Sample ID (Everything before the first '_S')
-    # Use regex or simple split, but since your files start with the ID,
-    # let's find the first _S and take everything before it.
-    
-    # Find the part that looks like '_SXX' or '_SXXX'
-    parts = filename.split('_S')
-    if len(parts) > 1:
-        # The Sample ID is the first part (e.g., 'Odo_Key3')
-        sample_id = parts[0]
-    else:
-        # Handle cases that might not fit the pattern perfectly (e.g., files already merged)
-        print(f"⚠️ Skipping file with unusual naming: {filename}")
+    # 2. Extract the Sample ID: Everything BEFORE the Lane ID '_L' (e.g., 'Odo_SC1_S6')
+    parts_L = filename.split('_L')
+    if len(parts_L) < 2:
+        print(f"⚠️ Skipping file with no Lane ID ('_L'): {filename}")
         continue
-        
-    # 3. Add the full path to the correct group
-    sample_groups[sample_id][read_group].append(filepath)
+    
+    # Isolate the sample_name + sample_index (e.g., 'Odo_SC1_S6')
+    sample_plus_index = parts_L[0]
+    
+    # 3. Final Sample ID: Remove the Sample Index tag ('_SXX')
+    # Use rsplit('_S', 1) to split only on the LAST occurrence of '_S'
+    final_merge_id = sample_plus_index.rsplit('_S', 1)[0] 
+    
+    # This logic correctly extracts the unique sample identifier for merging
+    # e.g., 'Odo_SC1_S6' -> 'Odo_SC1'
+    # e.g., 'Odo_Key3_S3' -> 'Odo_Key3'
 
-# --- Step 2: Generate and Submit Merge Jobs for Multi-Lane Samples ---
+    sample_groups[final_merge_id][read_group].append(filepath)
+
+# --- Step 2: Process Samples (Merge or Move) ---
 submitted_jobs = 0
 
 for sample_id, files in sample_groups.items():
-    # A sample needs merging if it has files from more than one lane (i.e., > 1 file in R1/R2 list)
+    # Check if a sample requires merging (i.e., multiple files for R1 or R2)
     if len(files['R1']) > 1 or len(files['R2']) > 1:
         
-        # NOTE: We assume len(R1) == len(R2), as they are paired-end
+        # --- Multi-Lane (Merging Required) ---
+        print(f"➡️ Multi-lane sample requiring merge: {sample_id} ({len(files['R1'])} lanes)")
         
-        # Create a list of files to concatenate, ensuring the R1 and R2 lists are in the SAME order
-        # We sort them by full path (or filename) to ensure R1 order matches R2 order
+        # Sort files to ensure R1 and R2 are merged in the same order
         r1_files_sorted = sorted(files['R1'])
         r2_files_sorted = sorted(files['R2'])
         
@@ -73,7 +70,7 @@ for sample_id, files in sample_groups.items():
         final_r1 = os.path.join(merge_output_dir, f"{sample_id}_merged_R1.fastq.gz")
         final_r2 = os.path.join(merge_output_dir, f"{sample_id}_merged_R2.fastq.gz")
         
-        # --- Generate SBATCH script for merging ---
+        # --- Generate and Submit SBATCH script for merging ---
         merge_job_script = f"{sample_id}_merge_job.sh"
         
         script_content = f"""#!/bin/bash
@@ -85,14 +82,11 @@ for sample_id, files in sample_groups.items():
 #SBATCH --output={merge_output_dir}/merge_{sample_id}.out
 #SBATCH --error={merge_output_dir}/merge_{sample_id}.err
 
-# NOTE: The 'cat' command is highly optimized for this.
-# It is CRITICAL that the R1 and R2 files are concatenated in the exact same order!
-
 echo "Starting merge for {sample_id}..."
-echo "Merging R1 files: {r1_input_str}"
+# Concatenate R1 files
 cat {r1_input_str} > {final_r1}
 
-echo "Merging R2 files: {r2_input_str}"
+# Concatenate R2 files
 cat {r2_input_str} > {final_r2}
 
 if [ $? -eq 0 ]; then
@@ -104,19 +98,34 @@ fi
         with open(merge_job_script, "w") as f:
             f.write(script_content)
         
-        # --- Submit the merge job ---
         try:
             subprocess.run(["sbatch", merge_job_script], check=True, text=True, capture_output=True)
-            print(f"➡️ Submitted MERGE job for multi-lane sample: {sample_id}")
             submitted_jobs += 1
         except subprocess.CalledProcessError as e:
             print(f"❌ Error submitting MERGE job for {sample_id}. SBATCH failed.")
-            print(f"Stderr: {e.stderr}")
-            print(f"Stdout: {e.stdout}")
-    
+
     else:
-        # Optional: You can move the single-lane files to the merged directory here
+        # --- Single-Lane (Move/Rename Required) ---
         print(f"✅ Single-lane sample: {sample_id}. No merge needed.")
         
+        # Define the target paths for the final files
+        final_r1_path = os.path.join(merge_output_dir, f"{sample_id}_merged_R1.fastq.gz")
+        final_r2_path = os.path.join(merge_output_dir, f"{sample_id}_merged_R2.fastq.gz")
+
+        # Get the current full paths
+        current_r1_path = files['R1'][0]
+        current_r2_path = files['R2'][0]
+
+        # Use os.rename to move and rename the files to the final merged directory
+        try:
+            os.rename(current_r1_path, final_r1_path)
+            os.rename(current_r2_path, final_r2_path)
+            print(f"   -> Moved and renamed R1/R2 to {merge_output_dir}")
+        except OSError as e:
+            print(f"❌ Error moving single-lane file for {sample_id}. {e}")
+
+
 print("-" * 30)
 print(f"Total multi-lane samples submitted for merging: {submitted_jobs}")
+print("Single-lane files have been moved and renamed.")
+print("Wait for SLURM merge jobs to complete before proceeding to alignment.")
