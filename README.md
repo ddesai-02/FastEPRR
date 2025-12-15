@@ -11,6 +11,5 @@ STEPS
 
 04_variant_calling.py - calls variants per scaffold per individual
 
-05_gather.py - gathers per individual
+05_genomics_db.py - creats a genomicsdb per scaffold
 
-06_filter.py - index vcf and filter sites
