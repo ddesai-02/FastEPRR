@@ -9,11 +9,9 @@
 #SBATCH --job-name=MergeVCF_L90
 
 echo "Starting GATK MergeVcfs."
-echo "Input files found: 34"
 echo "Start Time: $(date)"
 
-# --- IMPORTANT: Ensure GATK is loaded or in your PATH ---
-# module load gatk/4.x # Example - UNCOMMENT and ADJUST if needed
+module load gatk
 
 # 1. MERGEVCFS
 gatk --java-options "-Xmx28g -Djava.io.tmpdir=/home/devan/scratch/" MergeVcfs \
