@@ -3,31 +3,28 @@ import glob
 import subprocess
 import re
 
-# ======================================================================
-# --- CONFIGURATION ---
-# IMPORTANT: Adjust these paths to match your project structure.
-# ======================================================================
+# --- Configuration ---
+
 project_root = "/home/devan/projects/def-shaferab/devan/Odocoileus_virginianus/fasteprr/trimmed"
-# Directory containing R1/R2 FASTQ files (e.g., /path/to/trimmed_reads)
+# Directory containing FASTQ files
 fastq_dir = os.path.join(project_root, "trimmed_reads") 
 # Directory where BAM files will be stored
-mapping_dir = os.path.join(project_root, "bwa_mapping")
+mapping_dir = os.path.join(project_root, "bam_files")
 # Reference FASTA file
 REFERENCE_FASTA = os.path.join(os.path.dirname(project_root), "ref_fasta/WTD_Ovbor_1.2.fna")
-# New directory for GATK outputs (where fixed BAMs will land)
+# New directory for GATK outputs
 gatk_base_dir = os.path.join(project_root, "gatk_variants")
 fixed_bam_dir = os.path.join(gatk_base_dir, "fixed_bams")
 
-# Ensure all output directories exist
+# Ensure output directories exist
 os.makedirs(mapping_dir, exist_ok=True)
 os.makedirs(fixed_bam_dir, exist_ok=True)
 
-# ======================================================================
 # --- WORKFLOW ---
-# ======================================================================
-print("--- 1. Submitting BWA Mapping and BAM Fixing Jobs ---")
 
-# 1. Locate FASTQ pairs (Assumes files are named SAMPLE_R1.fastq.gz and SAMPLE_R2.fastq.gz)
+print("--- Submitting BWA Mapping and BAM Fixing Jobs ---")
+
+# 1. Locate FASTQ pairs
 fastq_r1_files = glob.glob(os.path.join(fastq_dir, "*_R1.fastq.gz"))
 sample_ids = [os.path.basename(f).replace("_R1.fastq.gz", "") for f in fastq_r1_files]
 
@@ -61,14 +58,14 @@ for sample_id in sample_ids:
 #SBATCH --error={mapping_dir}/{sample_id}.err
 
 module load StdEnv/2020
-module load bwa/0.7.17
-module load samtools/1.17
-module load java/14.0.2
-module load gatk/4.2.5.0 # Use consistent GATK version
+module load bwa
+module load samtools
+module load java
+module load gatk
 
-echo "Starting BWA Mapping for {sample_id}..."
+echo "Starting Mapping for {sample_id}..."
 
-# 1. BWA Mapping
+# 1. Mapping
 # Assumes the reference FASTA has been indexed (bwa index)
 bwa mem -t 8 -R '@RG\\tID:{sample_id}\\tSM:{sample_id}\\tPL:ILLUMINA' \\
     {REFERENCE_FASTA} {fq1} {fq2} > {sam_output}
@@ -80,7 +77,7 @@ samtools view -@ 8 -bS {sam_output} \\
     | samtools sort -@ 8 -o {sorted_bam}
 if [ $? -ne 0 ]; then echo "SAMtools Sort FAILED."; exit 1; fi
 
-# 3. GATK AddOrReplaceReadGroups (to ensure proper read group headers for HaplotypeCaller)
+# 3. GATK AddOrReplaceReadGroups
 echo "Adding/Replacing Read Groups and indexing BAM..."
 gatk AddOrReplaceReadGroups \\
     -I {sorted_bam} \\
