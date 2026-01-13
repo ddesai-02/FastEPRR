@@ -3,7 +3,7 @@ import glob
 import subprocess
 import re
 
-# --- Configuratoin ---
+# --- Configuration ---
 
 project_root = "/home/devan/projects/def-shaferab/devan/Odocoileus_virginianus/fasteprr/trimmed"
 gatk_base_dir = os.path.join(project_root, "gatk_variants")
