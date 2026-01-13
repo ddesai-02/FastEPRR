@@ -3,10 +3,8 @@ import glob
 import subprocess
 import re
 
-# ======================================================================
-# --- CONFIGURATION ---
-# IMPORTANT: Must match the paths in 01_submit_mapping.py
-# ======================================================================
+# --- Configuratoin ---
+
 project_root = "/home/devan/projects/def-shaferab/devan/Odocoileus_virginianus/fasteprr/trimmed"
 gatk_base_dir = os.path.join(project_root, "gatk_variants")
 fixed_bam_dir = os.path.join(gatk_base_dir, "fixed_bams")
@@ -14,7 +12,7 @@ gvcf_dir = os.path.join(gatk_base_dir, "gvcf_files")
 gvcf_split_dir = os.path.join(gvcf_dir, "split_scaffolds") 
 REFERENCE_FASTA = os.path.join(os.path.dirname(project_root), "ref_fasta/WTD_Ovbor_1.2.fna")
 
-# List of scaffolds used for scattering
+# List of scaffolds
 SCAFFOLD_LIST = [
     "NC_069674.1", "NC_069675.1", "NC_069676.1", "NC_069677.1", 
     "NC_069678.1", "NC_069679.1", "NC_069680.1", "NC_069681.1", 
@@ -30,18 +28,15 @@ SCAFFOLD_LIST = [
 # Ensure output directories exist
 os.makedirs(gvcf_split_dir, exist_ok=True)
 
-# ======================================================================
-# --- WORKFLOW ---
-# ======================================================================
-print("--- 2. Submitting HaplotypeCaller Scatter Jobs ---")
+print("--- Submitting HaplotypeCaller Jobs ---")
 
-# Identify sample IDs from fixed BAM files
+# Identify sample IDs from BAM files
 fixed_bam_files = glob.glob(os.path.join(fixed_bam_dir, "*_fixed_rg.bam"))
 sample_bams = {os.path.basename(f).replace("_fixed_rg.bam", ""): f for f in fixed_bam_files}
 sample_ids = list(sample_bams.keys())
 
 if not sample_ids:
-    print(f"❌ ERROR: No fixed BAM files found in {fixed_bam_dir}. Run 01_submit_mapping.py first.")
+    print(f"❌ ERROR: No fixed BAM files found in {fixed_bam_dir}.")
     exit(1)
 
 total_jobs = len(sample_ids) * len(SCAFFOLD_LIST)
@@ -101,4 +96,4 @@ echo "✅ HaplotypeCaller complete for {sample_id} on {scaffold}."
         except subprocess.CalledProcessError as e:
             print(f"❌ Error submitting job for {sample_id} on {scaffold}. SBATCH failed. Error: {e.stderr}")
 
-print(f"\nTotal scatter jobs submitted: {len(submitted_jobs)}. Monitor your queue. Once all these are finished, run 03_submit_gather_gvcf.py.")
+print(f"\nTotal scatter jobs submitted: {len(submitted_jobs)}.")
