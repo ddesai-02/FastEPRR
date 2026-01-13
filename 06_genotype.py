@@ -1,15 +1,12 @@
 import os
 
 # --- Configuration ---
-# Your specified paths
 REF_FASTA = "/home/devan/projects/def-shaferab/devan/Odocoileus_virginianus/fasteprr/ref_fasta/WTD_Ovbor_1.2.fna"
 SCAFFOLD_LIST_FILE = "/home/devan/projects/def-shaferab/devan/Odocoileus_virginianus/fasteprr/ref_fasta/WTD_L90_scaffs.list"
-
-# Directories from previous steps
 FASTEPRR = "/home/devan/projects/def-shaferab/devan/Odocoileus_virginianus/fasteprr"
 DB_ROOT_DIR = os.path.join(FASTEPRR, "genomics_db")
 
-# New output directories
+# output directories
 FINAL_VCF_DIR = os.path.join(FASTEPRR, "final_vcfs") # Directory for final VCFs
 SLURM_SCRIPTS_DIR = os.path.join(FASTEPRR, "genotype.log") # Directory for GenotypeGVCFs scripts
 scratch_dir = "/home/devan/scratch/" 
@@ -22,8 +19,7 @@ except FileNotFoundError:
     print(f"ERROR: Scaffold list file not found at {SCAFFOLD_LIST_FILE}")
     exit(1)
 
-# --- Slurm Header Parameters (GenotypeGVCFs is faster than DBImport) ---
-# We can dial back the resources slightly, but keep it generous for stability.
+# --- Slurm Header ---
 MEM_PER_JOB = "64G" 
 NUM_THREADS = 8
 SLURM_HEADER = f"""#!/bin/bash
@@ -35,7 +31,7 @@ SLURM_HEADER = f"""#!/bin/bash
 #SBATCH --error=%x_%j.err
 """
 
-# --- Ensure necessary directories exist ---
+# --- Ensure directories exist ---
 os.makedirs(FINAL_VCF_DIR, exist_ok=True)
 os.makedirs(SLURM_SCRIPTS_DIR, exist_ok=True)
 print(f"Genotyping {len(SCAFFOLDS)} scaffolds.")
