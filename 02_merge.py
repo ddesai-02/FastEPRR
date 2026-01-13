@@ -3,11 +3,11 @@ import glob
 import subprocess
 from collections import defaultdict
 
-# --- Configuration (Keep these paths correct) ---
+# --- Configuration ---
 trimmed_dir = "/home/devan/projects/def-shaferab/devan/Odocoileus_virginianus/fasteprr/trimmed"
 merge_output_dir = os.path.join(trimmed_dir, "merged_files")
 
-# Ensure the output directory exists
+# Ensure output directory exists
 os.makedirs(merge_output_dir, exist_ok=True)
 print(f"Trimmed directory: {trimmed_dir}")
 print(f"Merge output directory: {merge_output_dir}")
@@ -15,7 +15,7 @@ print("-" * 30)
 
 sample_groups = defaultdict(lambda: {'R1': [], 'R2': []})
 
-# --- Step 1: Group Files by Correct Sample ID ---
+# --- Step 1: Group Files by Sample ID ---
 all_trimmed_files = glob.glob(os.path.join(trimmed_dir, "*_trimmed_R?.fastq.gz"))
 
 for filepath in all_trimmed_files:
@@ -41,14 +41,10 @@ for filepath in all_trimmed_files:
     # 3. Final Sample ID: Remove the Sample Index tag ('_SXX')
     # Use rsplit('_S', 1) to split only on the LAST occurrence of '_S'
     final_merge_id = sample_plus_index.rsplit('_S', 1)[0] 
-    
-    # This logic correctly extracts the unique sample identifier for merging
-    # e.g., 'Odo_SC1_S6' -> 'Odo_SC1'
-    # e.g., 'Odo_Key3_S3' -> 'Odo_Key3'
 
     sample_groups[final_merge_id][read_group].append(filepath)
 
-# --- Step 2: Process Samples (Merge or Move) ---
+# --- Step 2: Process Samples ---
 submitted_jobs = 0
 
 for sample_id, files in sample_groups.items():
@@ -62,7 +58,7 @@ for sample_id, files in sample_groups.items():
         r1_files_sorted = sorted(files['R1'])
         r2_files_sorted = sorted(files['R2'])
         
-        # Create the input string for the 'cat' command
+        # Create the input string
         r1_input_str = " ".join(r1_files_sorted)
         r2_input_str = " ".join(r2_files_sorted)
         
@@ -70,7 +66,7 @@ for sample_id, files in sample_groups.items():
         final_r1 = os.path.join(merge_output_dir, f"{sample_id}_merged_R1.fastq.gz")
         final_r2 = os.path.join(merge_output_dir, f"{sample_id}_merged_R2.fastq.gz")
         
-        # --- Generate and Submit SBATCH script for merging ---
+        # --- Generate and Submit script for merging ---
         merge_job_script = f"{sample_id}_merge_job.sh"
         
         script_content = f"""#!/bin/bash
@@ -105,7 +101,7 @@ fi
             print(f"❌ Error submitting MERGE job for {sample_id}. SBATCH failed.")
 
     else:
-        # --- Single-Lane (Move/Rename Required) ---
+        # --- Single-Lane ---
         print(f"✅ Single-lane sample: {sample_id}. No merge needed.")
         
         # Define the target paths for the final files
